@@ -1,0 +1,154 @@
+---
+title: "stat408_project"
+author: "Ulziijargal Jambalsuren"
+---
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(kableExtra)
+library(lmtest)
+library(psych)
+library(leaps)
+library(car)
+
+
+# 1. Load Data
+
+df <- read.csv("Data/Mental_Health_Lifestyle_Dataset.csv")
+
+glimpse(df)
+
+
+# 2. Missingness Check
+
+missing_tbl <- df %>%
+  summarise(across(everything(), ~mean(is.na(.)) * 100)) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "pct_missing")
+
+missing_tbl %>%
+  mutate(pct_missing = round(pct_missing, 2)) %>%
+  kbl(caption = "Percent Missing by Variable") %>%
+  kable_paper(full_width = FALSE)
+
+# 3. Convert Categoricals to Factors + Baselines
+
+df <- df %>%
+  mutate(
+    country = factor(country),
+    gender  = factor(gender),
+    exercise_level = relevel(factor(exercise_level), ref = "Low"),
+    diet_type      = factor(diet_type),
+    stress_level   = relevel(factor(stress_level), ref = "Low"),
+    mental_health_condition = relevel(factor(mental_health_condition), ref = "None")
+  )
+
+# Keep needed variables
+vars_needed <- c(
+  "happiness_score", "country", "age", "gender", "exercise_level",
+  "diet_type", "sleep_hours", "stress_level", "mental_health_condition",
+  "work_hours", "screen_time", "social_interaction_score"
+)
+
+happiness <- df %>%
+  select(all_of(vars_needed)) %>%
+  drop_na()
+
+summary_table <- psych::describe(df)
+summary_table
+
+
+# 4. Exploratory Plots (Histograms)
+
+numeric_vars <- c(
+  "age", "sleep_hours", "work_hours",
+  "screen_time", "social_interaction_score", "happiness_score"
+)
+
+for (v in numeric_vars) {
+  print(
+    ggplot(happiness, aes_string(x = v)) +
+      geom_histogram(fill = "skyblue", color = "black", bins = 30) +
+      labs(title = paste("Histogram of", v), x = v, y = "Count") +
+      theme_minimal()
+  )
+}
+
+# 5. Full Model With Interactions (before selection)
+
+full_mod <- lm(
+  happiness_score ~ country + age + gender + exercise_level + diet_type +
+    sleep_hours + stress_level + mental_health_condition + work_hours +
+    screen_time + social_interaction_score +
+    exercise_level:stress_level + age:screen_time,
+  data = happiness
+)
+
+summary(full_mod)
+
+# 6. Mallow’s Cp Variable Selection (exhaustive)
+#   (Used for confirmation, NOT to rebuild a formula)
+
+# Model matrix (dummy variables)
+X <- model.matrix(full_mod)  # includes intercept in first column
+y <- happiness$happiness_score
+
+# Use all predictors except intercept for regsubsets
+subset_fit <- regsubsets(x = X[, -1], y = y,
+                         nvmax = ncol(X) - 1,
+                         method = "exhaustive")
+
+subset_summary <- summary(subset_fit)
+
+cp_vals <- subset_summary$cp
+sizes   <- 1:length(cp_vals)
+
+# Look at Cp vs model size
+cp_table <- data.frame(
+  size = sizes,
+  Cp   = cp_vals
+)
+
+print(head(cp_table, 10))
+
+# Choose model where Cp is closest to its size
+best_size <- which.min(abs(cp_vals - sizes))
+best_size
+
+# Coefficients of Cp-selected model (for inspection only)
+coef(subset_fit, best_size)
+
+# NOTE:
+# We interpret that Cp does not clearly favor a much smaller
+# model, so we continue using `full_mod` as the final model.
+
+final_mod <- full_mod  # final model = full model
+summary(final_mod)
+
+# 7. Diagnostics
+
+# Linearity & residual structure
+plot(final_mod, 1)  # Residuals vs Fitted
+
+# Homoscedasticity (Breusch-Pagan)
+bptest(final_mod)
+
+# Normality (Q–Q plot + KS test)
+plot(final_mod, 2)
+ks.test(rstandard(final_mod), "pnorm")
+
+# Multicollinearity
+vif(final_mod)
+
+# Influential points
+plot(final_mod, 4)
+
+plot(sizes, cp_vals, type = "b",
+     xlab = "Model size (number of predictors)",
+     ylab = "Mallow's Cp",
+     main = "Cp vs Model Size")
+abline(0, 1, lty = 2)  # Cp = p reference
+```
