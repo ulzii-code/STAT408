@@ -91,7 +91,6 @@ full_mod <- lm(
 summary(full_mod)
 
 # 6. Mallow’s Cp Variable Selection (exhaustive)
-#   (Used for confirmation, NOT to rebuild a formula)
 
 # Model matrix (dummy variables)
 X <- model.matrix(full_mod)  # includes intercept in first column
@@ -119,7 +118,7 @@ print(head(cp_table, 10))
 best_size <- which.min(abs(cp_vals - sizes))
 best_size
 
-# Coefficients of Cp-selected model (for inspection only)
+# Coefficients of Cp-selected model
 selected_vars <- coef(subset_fit, best_size)
 selected_vars
 
@@ -129,11 +128,8 @@ plot(sizes, cp_vals, type = "b", pch = 19,
      main = "Cp vs Model Size")
 abline(0, 1, col = "red", lty = 2)  # Cp = p reference line
 
-
-
-# NOTE:
-# We interpret that Cp does not clearly favor a much smaller
-# model, so we continue using `full_mod` as the final model.
+# Interpret that Cp does not clearly favor a much smaller
+# model, so will continue using `full_mod` as the final model.
 
 final_mod <- full_mod  # final model = full model
 summary(final_mod)
