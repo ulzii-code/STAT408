@@ -4,6 +4,7 @@ author: "Ulziijargal Jambalsuren"
 ---
 
 Project
+
 Prediction of happiness score
 
 ```{r}
