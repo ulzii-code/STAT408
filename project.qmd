@@ -3,7 +3,7 @@ title: "stat408_project"
 author: "Ulziijargal Jambalsuren"
 ---
 
-Project\
+Project
 Prediction of happiness score
 
 ```{r}
